@@ -2,7 +2,6 @@ import requests, re, time, threading, base64
 from bs4 import BeautifulSoup
 from colorama import Fore, init
 import telebot
-from telebot import types
 from hh import keep_alive
 
 init(autoreset=True)
@@ -84,6 +83,76 @@ sto = {"stop": False}
 bot = telebot.TeleBot("7700737624:AAEKOb2kJFTN6g-Cod4vDphfpqlJSsjzoHU", parse_mode="HTML")
 OWNER_ID = 7077294261
 
-# Key System
 redeemed_users = set()
-valid_keys = {"B3
+valid_keys = {"B3-2026-PREMIUM", "SONALI123", "FREE2026", "GATEAU2026"}
+
+@bot.message_handler(commands=["start"])
+def welcome(message):
+    bot.send_message(message.chat.id, "𓆩 𝐏𝐫𝐞𝐦𝐢𝐮𝐦 𓆪\nUse /key YOURKEY to activate")
+
+@bot.message_handler(commands=["key"])
+def redeem_key(message):
+    try:
+        key = message.text.split()[1]
+        if key in valid_keys:
+            redeemed_users.add(message.chat.id)
+            bot.reply_to(message, "✅ Key Activated Successfully!\nNow send combo file.")
+        else:
+            bot.reply_to(message, "❌ Invalid Key!")
+    except:
+        bot.reply_to(message, "Usage: /key YOURKEY")
+
+@bot.message_handler(content_types=["document"])
+def check(message):
+    user_id = message.chat.id
+
+    if user_id != OWNER_ID and user_id not in redeemed_users:
+        return bot.reply_to(message, "❌ Access Denied!\nUse /key first.")
+
+    sto["stop"] = False
+    name = message.from_user.first_name or "User"
+    
+    file_info = bot.get_file(message.document.file_id)
+    downloaded = bot.download_file(file_info.file_path)
+    with open("combo.txt", "wb") as f: f.write(downloaded)
+
+    with open("combo.txt") as f:
+        cards = [line.strip() for line in f if line.strip()]
+
+    ok = 0
+    ko = bot.reply_to(message, f"🔥 Checking Started by {name}\nTotal: {len(cards)}").message_id
+
+    for cc in cards:
+        if sto["stop"]: break
+        result = Tele(cc)
+        
+        if "Approved" in result or "New Card Added" in result:
+            ok += 1
+            respo = f'''
+✅ <b>HIT FOUND</b>
+━━━━━━━━━━━━━━
+[↯] 𝗖𝗖: <code>{cc}</code>
+[↯] Result: {result}
+━━━━━━━━━━━━━━
+            '''
+            bot.reply_to(message, respo)
+            with open("hit.txt", "a", encoding="utf-8") as f:
+                f.write(respo + "\n\n")
+        
+        try:
+            bot.edit_message_text(f"Progress: {ok} Hits / {len(cards)}", message.chat.id, ko)
+        except:
+            pass
+
+        time.sleep(0.8)
+
+    bot.reply_to(message, f"✅ Finished!\nHits: {ok}")
+
+@bot.message_handler(commands=["stop"])
+def stopit(message):
+    sto["stop"] = True
+    bot.reply_to(message, "✅ Stopped")
+
+keep_alive()
+print("✅ Bot Started Successfully")
+bot.infinity_polling()
