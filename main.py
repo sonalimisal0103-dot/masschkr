@@ -2,7 +2,7 @@ import requests, time, threading
 import telebot
 from hh import keep_alive
 
-bot = telebot.TeleBot("7700737624:AAEKOb2kJFTN6g-Cod4vDphfpqlJSsjzoHU", parse_mode="HTML")
+bot = telebot.TeleBot("8783810252:AAEv2GtOJYG_-iBv1AMjvV8Le3kZBo9FJb0", parse_mode="HTML")
 OWNER_ID = 7077294261
 
 API_PAYPAL = "http://108.165.12.183:8081/"
